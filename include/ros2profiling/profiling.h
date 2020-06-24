@@ -66,8 +66,8 @@ extern "C" {
     }
   }
 
-  static uint64_t get_profile(void* msg, int profile_index) {
-    uint64_t* msg_u64 = (uint64_t*)msg;
+  static uint64_t get_profile(const void* msg, int profile_index) {
+    const uint64_t* msg_u64 = (const uint64_t*)msg;
     const int data_offset = 6;
     return msg_u64[profile_index + data_offset];
   }
