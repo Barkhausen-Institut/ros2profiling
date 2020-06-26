@@ -59,11 +59,13 @@ extern "C" {
     const int data_offset = 6;
     msg_u64[profile_index + data_offset] = ts_val;
 
+    #ifdef _DEBUG
     if (log_msg)
       printf("%lu %s %s\n", ts_val, topic_name, log_msg);
     else {
       printf("%lu %s\n", ts_val, topic_name);
     }
+    #endif
   }
 
   static uint64_t get_profile(const void* msg, int profile_index) {
