@@ -16,19 +16,19 @@ extern "C" {
 /* #define PROFIDX_HANDLE_MSG 5 */
 /* #define PROFIDX_DO_INTER_PROCESS_PUBLISH 6 */
   
-#define PROFIDX_PUB_RCLCPP_INTERPROCESS_PUBLISH 1
-#define PROFIDX_PUB_RCL_PUBLISH 2
-#define PROFIDX_PUB_RMW_PUBLISH 3
-#define PROFIDX_PUB_DDS_WRITE 4  
+#define PROFIDX_PUB_RCLCPP_INTERPROCESS_PUBLISH 0
+#define PROFIDX_PUB_RCL_PUBLISH 1
+#define PROFIDX_PUB_RMW_PUBLISH 2
+#define PROFIDX_PUB_DDS_WRITE 3
 
 
-#define PROFIDX_SUB_DDS_ONDATA 8
-#define PROFIDX_SUB_RCLCPP_TAKE 9
-#define PROFIDX_SUB_RCL_TAKE 10
-#define PROFIDX_SUB_RMW_TAKE_WITH_INFO 11
-#define PROFIDX_SUB_DDS_TAKE 12
+#define PROFIDX_SUB_DDS_ONDATA 4
+#define PROFIDX_SUB_RCLCPP_TAKE 5
+#define PROFIDX_SUB_RCL_TAKE 6
+#define PROFIDX_SUB_RMW_TAKE_WITH_INFO 7
+#define PROFIDX_SUB_DDS_TAKE 8
   
-#define PROFIDX_SUB_RCLCPP_HANDLE 18
+#define PROFIDX_SUB_RCLCPP_HANDLE 9
 
   static uint64_t get_timestamp() {
     long int ns;
@@ -56,7 +56,7 @@ extern "C" {
       ts_val = get_timestamp();
 
     uint64_t* msg_u64 = (uint64_t*)msg;
-    const int data_offset = 6;
+    const int data_offset = 3;
     msg_u64[profile_index + data_offset] = ts_val;
 
     #ifdef _DEBUG
@@ -70,7 +70,7 @@ extern "C" {
 
   static uint64_t get_profile(const void* msg, int profile_index) {
     const uint64_t* msg_u64 = (const uint64_t*)msg;
-    const int data_offset = 6;
+    const int data_offset = 3;
     return msg_u64[profile_index + data_offset];
   }
 
