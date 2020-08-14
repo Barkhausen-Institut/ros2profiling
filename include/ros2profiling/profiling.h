@@ -71,13 +71,13 @@ extern "C" {
     msg_u32[data_offset+1+profile_index] = (uint32_t)(ts_val & 0xFFFFFFFF);
       
 
-    //    #ifdef _DEBUG
+    #ifdef _DEBUG
     if (log_msg)
       printf("%lu %s %s\n", ts_val, topic_name, log_msg);
     else {
       printf("%lu %s\n", ts_val, topic_name);
     }
-    //    #endif
+    #endif
   }
 
   static uint64_t get_profile(const void* msg, int profile_index) {
