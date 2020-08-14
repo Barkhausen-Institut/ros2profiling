@@ -23,12 +23,17 @@ extern "C" {
 
 
 #define PROFIDX_SUB_DDS_ONDATA 4
-#define PROFIDX_SUB_RCLCPP_TAKE 5
-#define PROFIDX_SUB_RCL_TAKE 6
-#define PROFIDX_SUB_RMW_TAKE_WITH_INFO 7
-#define PROFIDX_SUB_DDS_TAKE 8
+
+#define PROFIDX_SUB_RCLCPP_TAKE_ENTER 5
+#define PROFIDX_SUB_RCL_TAKE_ENTER 6
+#define PROFIDX_SUB_RMW_TAKE_ENTER 7
+#define PROFIDX_SUB_DDS_TAKE_ENTER 8
+#define PROFIDX_SUB_DDS_TAKE_LEAVE 9
+#define PROFIDX_SUB_RMW_TAKE_LEAVE 10
+#define PROFIDX_SUB_RCL_TAKE_LEAVE 11
+#define PROFIDX_SUB_RCLCPP_TAKE_LEAVE 12
   
-#define PROFIDX_SUB_RCLCPP_HANDLE 9
+#define PROFIDX_SUB_RCLCPP_HANDLE 13
 
   static uint64_t get_timestamp() {
     long int ns;
@@ -55,23 +60,42 @@ extern "C" {
     else
       ts_val = get_timestamp();
 
-    uint64_t* msg_u64 = (uint64_t*)msg;
-    const int data_offset = 3;
-    msg_u64[profile_index + data_offset] = ts_val;
+    const int data_offset = 12;
 
-    #ifdef _DEBUG
+    uint32_t* msg_u32 = (uint32_t*)msg;
+    
+    if (profile_index == 0) {
+      msg_u32[data_offset] = (uint32_t)(ts_val >> 32);
+    }
+
+    msg_u32[data_offset+1+profile_index] = (uint32_t)(ts_val & 0xFFFFFFFF);
+      
+
+    //    #ifdef _DEBUG
     if (log_msg)
       printf("%lu %s %s\n", ts_val, topic_name, log_msg);
     else {
       printf("%lu %s\n", ts_val, topic_name);
     }
-    #endif
+    //    #endif
   }
 
   static uint64_t get_profile(const void* msg, int profile_index) {
-    const uint64_t* msg_u64 = (const uint64_t*)msg;
-    const int data_offset = 3;
-    return msg_u64[profile_index + data_offset];
+    const int data_offset = 12;
+
+    const uint32_t* msg_u32 = (const uint32_t*)msg;    
+    uint64_t upper = msg_u32[data_offset];
+    uint64_t lower0 = msg_u32[data_offset+1];
+
+    uint64_t lower = msg_u32[data_offset+1+profile_index];
+
+    if (lower < lower0)
+      upper++;
+
+    if (lower == 0)
+      return 0;
+    
+    return upper << 32 | lower;
   }
 
 #ifdef __cplusplus
