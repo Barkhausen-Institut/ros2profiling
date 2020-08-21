@@ -5,11 +5,11 @@ index b418949..6a47108 100644
 @@ -77,6 +77,8 @@
  #include "serdata.hpp"
  #include "demangle.hpp"
- 
+
 +#include <ros2profiling/profiling.h>
 +
  using namespace std::literals::chrono_literals;
- 
+
  /* Security must be enabled when compiling and requires cyclone to support QOS property lists */
 @@ -1431,11 +1433,13 @@ extern "C" rmw_ret_t rmw_publish(
    const rmw_publisher_t * publisher, const void * ros_message,
@@ -21,7 +21,7 @@ index b418949..6a47108 100644
    RET_NULL(ros_message);
    auto pub = static_cast<CddsPublisher *>(publisher->data);
    assert(pub);
-+  store_profile(publisher->topic_name, const_cast<void*>(ros_message), PROFIDX_PUB_DDS_WRITE, "dds_write", NULL);  
++  store_profile(publisher->topic_name, const_cast<void*>(ros_message), PROFIDX_PUB_DDS_WRITE, "dds_write", NULL);
    if (dds_write(pub->enth, ros_message) >= 0) {
      return RMW_RET_OK;
    } else {
@@ -40,7 +40,7 @@ index b418949..6a47108 100644
          // TODO(iluetkeb) add received timestamp, when implemented by Cyclone
          message_info->received_timestamp = 0;
 +	store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_DDS_TAKE_ENTER, "dds_take_enter", &ts_enter);
-+	store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_DDS_TAKE_LEAVE, "dds_take_leave", &ts_leave);	
++	store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_DDS_TAKE_LEAVE, "dds_take_leave", &ts_leave);
        }
  #if REPORT_LATE_MESSAGES > 0
        dds_time_t tnow = dds_time();
@@ -49,11 +49,11 @@ index b418949..6a47108 100644
  {
    static_cast<void>(allocation);
 -  return rmw_take_int(subscription, ros_message, taken, message_info);
-+  uint64_t ts_enter = get_timestamp();  
++  uint64_t ts_enter = get_timestamp();
 +  auto result = rmw_take_int(subscription, ros_message, taken, message_info);
 +  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_ENTER, "take_enter", &ts_enter);
-+  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_LEAVE, "take_leave", NULL);  
++  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_LEAVE, "take_leave", NULL);
 +  return result;
  }
- 
+
  extern "C" rmw_ret_t rmw_take_sequence(

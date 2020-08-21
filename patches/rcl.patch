@@ -5,7 +5,7 @@ index 62bf16b..67fc609 100644
 @@ -34,6 +34,8 @@ extern "C"
  #include "./common.h"
  #include "./publisher_impl.h"
- 
+
 +#include <ros2profiling/profiling.h>
 +
  rcl_publisher_t
@@ -26,18 +26,18 @@ index 2e3b37d..c314aed 100644
 @@ -32,6 +32,8 @@ extern "C"
  #include "./common.h"
  #include "./subscription_impl.h"
- 
-+#include <ros2profiling/profiling.h>  
+
++#include <ros2profiling/profiling.h>
 +
- 
+
  rcl_subscription_t
  rcl_get_zero_initialized_subscription()
 @@ -254,6 +256,8 @@ rcl_take(
    rmw_subscription_allocation_t * allocation
  )
  {
-+  uint64_t ts = get_timestamp(); 
-+  
++  uint64_t ts = get_timestamp();
++
    RCUTILS_LOG_DEBUG_NAMED(ROS_PACKAGE_NAME, "Subscription taking message");
    if (!rcl_subscription_is_valid(subscription)) {
      return RCL_RET_SUBSCRIPTION_INVALID;  // error message already set
@@ -46,7 +46,7 @@ index 2e3b37d..c314aed 100644
      return RCL_RET_SUBSCRIPTION_TAKE_FAILED;
    }
 +  store_profile(subscription->impl->rmw_handle->topic_name, ros_message, PROFIDX_SUB_RCL_TAKE_ENTER, "rcl_enter", &ts);
-+  store_profile(subscription->impl->rmw_handle->topic_name, ros_message, PROFIDX_SUB_RCL_TAKE_LEAVE, "rcl_leave", NULL);  
++  store_profile(subscription->impl->rmw_handle->topic_name, ros_message, PROFIDX_SUB_RCL_TAKE_LEAVE, "rcl_leave", NULL);
    return RCL_RET_OK;
  }
- 
+

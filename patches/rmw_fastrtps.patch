@@ -5,23 +5,23 @@ index e46bf9e..52c3a64 100644
 @@ -24,20 +24,22 @@
  #include "fastrtps/subscriber/Subscriber.h"
  #include "fastrtps/subscriber/SubscriberListener.h"
- 
+
  #include "rcpputils/thread_safety_annotations.hpp"
- 
+
  #include "rmw/impl/cpp/macros.hpp"
- 
+
  #include "rmw_fastrtps_shared_cpp/TypeSupport.hpp"
  #include "rmw_fastrtps_shared_cpp/custom_event_info.hpp"
- 
+
 +#include <ros2profiling/profiling.h>
 +
- 
+
  class SubListener;
- 
+
  struct CustomSubscriberInfo : public CustomEventInfo
  {
    virtual ~CustomSubscriberInfo() = default;
- 
+
    eprosima::fastrtps::Subscriber * subscriber_;
    SubListener * listener_;
    rmw_fastrtps_shared_cpp::TypeSupport * type_support_;
@@ -35,7 +35,7 @@ index e46bf9e..52c3a64 100644
      // Field is not used right now
      (void)info;
    }
- 
+
 +  uint64_t lastOnData = 0;
 +
    // SubscriberListener implementation
@@ -50,7 +50,7 @@ index e46bf9e..52c3a64 100644
        publishers_.erase(info.remoteEndpointGuid);
      }
    }
- 
+
    void
    onNewDataMessage(eprosima::fastrtps::Subscriber * sub) final
    {
@@ -63,24 +63,24 @@ index e46bf9e..52c3a64 100644
  #else
      uint64_t unread_count = sub->get_unread_count();
  #endif
- 
+
      std::lock_guard<std::mutex> lock(internalMutex_);
- 
+
 diff --git a/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp b/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp
 index c8c8b64..8c9f4e2 100644
 --- a/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp
 +++ b/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp
 @@ -16,46 +16,50 @@
  #include "fastcdr/FastBuffer.h"
- 
+
  #include "rmw/allocators.h"
  #include "rmw/error_handling.h"
  #include "rmw/rmw.h"
- 
+
  #include "rmw_fastrtps_shared_cpp/rmw_common.hpp"
  #include "rmw_fastrtps_shared_cpp/custom_publisher_info.hpp"
  #include "rmw_fastrtps_shared_cpp/TypeSupport.hpp"
- 
+
 +#include <ros2profiling/profiling.h>
 +
  namespace rmw_fastrtps_shared_cpp
@@ -97,28 +97,28 @@ index c8c8b64..8c9f4e2 100644
    RCUTILS_CHECK_FOR_NULL_WITH_MSG(publisher, "publisher pointer is null", return RMW_RET_ERROR);
    RCUTILS_CHECK_FOR_NULL_WITH_MSG(
      ros_message, "ros_message pointer is null", return RMW_RET_ERROR);
- 
+
    if (publisher->implementation_identifier != identifier) {
      RMW_SET_ERROR_MSG("publisher handle not from this implementation");
      return RMW_RET_ERROR;
    }
- 
+
    auto info = static_cast<CustomPublisherInfo *>(publisher->data);
    RCUTILS_CHECK_FOR_NULL_WITH_MSG(info, "publisher info pointer is null", return RMW_RET_ERROR);
- 
+
    rmw_fastrtps_shared_cpp::SerializedData data;
    data.is_cdr_buffer = false;
    data.data = const_cast<void *>(ros_message);
    data.impl = info->type_support_impl_;
-+  store_profile(publisher->topic_name, const_cast<void*>(ros_message), PROFIDX_PUB_DDS_WRITE, "dds_write", NULL);  
++  store_profile(publisher->topic_name, const_cast<void*>(ros_message), PROFIDX_PUB_DDS_WRITE, "dds_write", NULL);
    if (!info->publisher_->write(&data)) {
      RMW_SET_ERROR_MSG("cannot publish data");
      return RMW_RET_ERROR;
    }
- 
+
    return RMW_RET_OK;
  }
- 
+
  rmw_ret_t
  __rmw_publish_serialized_message(
 diff --git a/rmw_fastrtps_shared_cpp/src/rmw_take.cpp b/rmw_fastrtps_shared_cpp/src/rmw_take.cpp
@@ -127,15 +127,15 @@ index 1bd9327..695c274 100644
 +++ b/rmw_fastrtps_shared_cpp/src/rmw_take.cpp
 @@ -22,20 +22,22 @@
  #include "fastrtps/attributes/SubscriberAttributes.h"
- 
+
  #include "fastcdr/Cdr.h"
  #include "fastcdr/FastBuffer.h"
- 
+
  #include "rmw_fastrtps_shared_cpp/custom_subscriber_info.hpp"
  #include "rmw_fastrtps_shared_cpp/guid_utils.hpp"
  #include "rmw_fastrtps_shared_cpp/rmw_common.hpp"
  #include "rmw_fastrtps_shared_cpp/TypeSupport.hpp"
- 
+
 +#include <ros2profiling/profiling.h>
 +
  namespace rmw_fastrtps_shared_cpp
@@ -149,12 +149,12 @@ index 1bd9327..695c274 100644
    message_info->source_timestamp = sinfo->sourceTimestamp.to_ns();
    message_info->received_timestamp = sinfo->receptionTimestamp.to_ns();
 @@ -67,22 +69,27 @@ _take(
- 
+
    CustomSubscriberInfo * info = static_cast<CustomSubscriberInfo *>(subscription->data);
    RCUTILS_CHECK_FOR_NULL_WITH_MSG(info, "custom subscriber info is null", return RMW_RET_ERROR);
- 
+
    eprosima::fastrtps::SampleInfo_t sinfo;
- 
+
    rmw_fastrtps_shared_cpp::SerializedData data;
    data.is_cdr_buffer = false;
    data.data = ros_message;
@@ -162,11 +162,11 @@ index 1bd9327..695c274 100644
 +  uint64_t ts = get_timestamp();
    if (info->subscriber_->takeNextData(&data, &sinfo)) {
 +    store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_DDS_TAKE_ENTER, "dds_take_enter", &ts);
-+    store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_DDS_TAKE_LEAVE, "dds_take_leave", NULL);    
++    store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_DDS_TAKE_LEAVE, "dds_take_leave", NULL);
      info->listener_->data_taken(info->subscriber_);
 +    if (info->listener_)
 +      store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_DDS_ONDATA, "on_data", &info->listener_->lastOnData);
- 
+
      if (eprosima::fastrtps::rtps::ALIVE == sinfo.sampleKind) {
        if (message_info) {
          _assign_message_info(identifier, message_info, &sinfo);
@@ -174,10 +174,10 @@ index 1bd9327..695c274 100644
        *taken = true;
      }
    }
- 
+
    return RMW_RET_OK;
 @@ -221,29 +228,33 @@ __rmw_take_sequence(
- 
+
  rmw_ret_t
  __rmw_take_with_info(
    const char * identifier,
@@ -195,14 +195,14 @@ index 1bd9327..695c274 100644
    RCUTILS_CHECK_FOR_NULL_WITH_MSG(taken, "boolean flag for taken is null", return RMW_RET_ERROR);
    RCUTILS_CHECK_FOR_NULL_WITH_MSG(
      message_info, "message info pointer is null", return RMW_RET_ERROR);
- 
+
 -  return _take(identifier, subscription, ros_message, taken, message_info, allocation);
 +  auto ret = _take(identifier, subscription, ros_message, taken, message_info, allocation);
 +  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_ENTER, "take_enter", &ts);
-+  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_LEAVE, "take_leave", NULL);  
++  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_LEAVE, "take_leave", NULL);
 +  return ret;
  }
- 
+
  rmw_ret_t
  _take_serialized_message(
    const char * identifier,

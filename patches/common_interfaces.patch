@@ -1,0 +1,20 @@
+diff --git a/std_msgs/CMakeLists.txt b/std_msgs/CMakeLists.txt
+index 354f1a9..1e14514 100644
+--- a/std_msgs/CMakeLists.txt
++++ b/std_msgs/CMakeLists.txt
+@@ -45,6 +45,7 @@ set(msg_files
+   "msg/UInt64MultiArray.msg"
+   "msg/UInt8.msg"
+   "msg/UInt8MultiArray.msg"
++  "msg/Stamped1kb.msg"
+ )
+ rosidl_generate_interfaces(${PROJECT_NAME}
+   ${msg_files}
+diff --git a/std_msgs/msg/Stamped1kb.msg b/std_msgs/msg/Stamped1kb.msg
+new file mode 100644
+index 0000000..c3b748a
+--- /dev/null
++++ b/std_msgs/msg/Stamped1kb.msg
+@@ -0,0 +1,2 @@
++std_msgs/Header header
++byte[1024] data
