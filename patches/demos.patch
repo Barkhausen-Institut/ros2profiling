@@ -1,0 +1,114 @@
+diff --git a/demo_nodes_cpp/CMakeLists.txt b/demo_nodes_cpp/CMakeLists.txt
+index a0863ee..c890f14 100644
+--- a/demo_nodes_cpp/CMakeLists.txt
++++ b/demo_nodes_cpp/CMakeLists.txt
+@@ -18,6 +18,7 @@ find_package(rclcpp_components REQUIRED)
+ find_package(rcutils)
+ find_package(rmw REQUIRED)
+ find_package(std_msgs REQUIRED)
++find_package(ros2profiling REQUIRED)
+ 
+ include_directories(include)
+ 
+@@ -40,7 +41,8 @@ function(add_demo_dependencies library)
+     "rclcpp"
+     "rclcpp_components"
+     "rcutils"
+-    "std_msgs")
++    "std_msgs"
++    "ros2profiling")
+ endfunction()
+ # Tutorials of Publish/Subscribe with Topics
+ custom_executable(topics allocator_tutorial)
+diff --git a/demo_nodes_cpp/src/topics/listener.cpp b/demo_nodes_cpp/src/topics/listener.cpp
+index c5b1a5d..7b5cd4d 100644
+--- a/demo_nodes_cpp/src/topics/listener.cpp
++++ b/demo_nodes_cpp/src/topics/listener.cpp
+@@ -15,10 +15,12 @@
+ #include "rclcpp/rclcpp.hpp"
+ #include "rclcpp_components/register_node_macro.hpp"
+ 
+-#include "std_msgs/msg/string.hpp"
++#include "std_msgs/msg/stamped1kb.hpp"
+ 
+ #include "demo_nodes_cpp/visibility_control.h"
+ 
++#include <ros2profiling/profiling.h>
++
+ namespace demo_nodes_cpp
+ {
+ // Create a Listener class that subclasses the generic rclcpp::Node base class.
+@@ -34,19 +36,23 @@ public:
+     // Variations of this function also exist using, for example UniquePtr for zero-copy transport.
+     setvbuf(stdout, NULL, _IONBF, BUFSIZ);
+     auto callback =
+-      [this](const std_msgs::msg::String::SharedPtr msg) -> void
++      [this](const MSG::SharedPtr msg) -> void
+       {
+-        RCLCPP_INFO(this->get_logger(), "I heard: [%s]", msg->data.c_str());
++        RCLCPP_INFO(this->get_logger(), "I heard:");
++
++	for (int i = 0; i < 20; i++)
++	  std::cout << i << ": " << get_profile(msg.get(), i) << std::endl;	
+       };
+     // Create a subscription to the topic which can be matched with one or more compatible ROS
+     // publishers.
+     // Note that not all publishers on the same topic with the same type will be compatible:
+     // they must have compatible Quality of Service policies.
+-    sub_ = create_subscription<std_msgs::msg::String>("chatter", 10, callback);
++    sub_ = create_subscription<MSG>("chat_profile_ter", 10, callback);
+   }
+ 
+ private:
+-  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_;
++  using MSG = std_msgs::msg::Stamped1kb;
++  rclcpp::Subscription<MSG>::SharedPtr sub_;
+ };
+ 
+ }  // namespace demo_nodes_cpp
+diff --git a/demo_nodes_cpp/src/topics/talker.cpp b/demo_nodes_cpp/src/topics/talker.cpp
+index 30f97a0..3557651 100644
+--- a/demo_nodes_cpp/src/topics/talker.cpp
++++ b/demo_nodes_cpp/src/topics/talker.cpp
+@@ -20,7 +20,7 @@
+ #include "rclcpp/rclcpp.hpp"
+ #include "rclcpp_components/register_node_macro.hpp"
+ 
+-#include "std_msgs/msg/string.hpp"
++#include "std_msgs/msg/stamped1kb.hpp"
+ 
+ #include "demo_nodes_cpp/visibility_control.h"
+ 
+@@ -42,16 +42,16 @@ public:
+     auto publish_message =
+       [this]() -> void
+       {
+-        msg_ = std::make_unique<std_msgs::msg::String>();
+-        msg_->data = "Hello World: " + std::to_string(count_++);
+-        RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", msg_->data.c_str());
++        msg_ = std::make_unique<MSG>();
++	//        msg_->data = "Hello World: " + std::to_string(count_++);
++        RCLCPP_INFO(this->get_logger(), "Publishing:");
+         // Put the message into a queue to be processed by the middleware.
+         // This call is non-blocking.
+         pub_->publish(std::move(msg_));
+       };
+     // Create a publisher with a custom Quality of Service profile.
+     rclcpp::QoS qos(rclcpp::KeepLast(7));
+-    pub_ = this->create_publisher<std_msgs::msg::String>("chatter", qos);
++    pub_ = this->create_publisher<MSG>("chat_profile_ter", qos);
+ 
+     // Use a timer to schedule periodic message publishing.
+     timer_ = this->create_wall_timer(1s, publish_message);
+@@ -59,8 +59,9 @@ public:
+ 
+ private:
+   size_t count_ = 1;
+-  std::unique_ptr<std_msgs::msg::String> msg_;
+-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_;
++  using MSG=std_msgs::msg::Stamped1kb;
++  std::unique_ptr<MSG> msg_;
++  rclcpp::Publisher<MSG>::SharedPtr pub_;
+   rclcpp::TimerBase::SharedPtr timer_;
+ };
+ 

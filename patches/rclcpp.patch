@@ -1,0 +1,104 @@
+diff --git a/rclcpp/CMakeLists.txt b/rclcpp/CMakeLists.txt
+index 1d646bc..6945d83 100644
+--- a/rclcpp/CMakeLists.txt
++++ b/rclcpp/CMakeLists.txt
+@@ -19,6 +19,7 @@ find_package(rosidl_typesupport_c REQUIRED)
+ find_package(rosidl_typesupport_cpp REQUIRED)
+ find_package(statistics_msgs REQUIRED)
+ find_package(tracetools REQUIRED)
++find_package(ros2profiling REQUIRED)
+ 
+ # Default to C++14
+ if(NOT CMAKE_CXX_STANDARD)
+@@ -171,6 +172,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
+ target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})
+ # specific order: dependents before dependencies
+ ament_target_dependencies(${PROJECT_NAME}
++  "ros2profiling"
+   "libstatistics_collector"
+   "rcl"
+   "rcl_yaml_param_parser"
+diff --git a/rclcpp/include/rclcpp/publisher.hpp b/rclcpp/include/rclcpp/publisher.hpp
+index 8518353..7a1235b 100644
+--- a/rclcpp/include/rclcpp/publisher.hpp
++++ b/rclcpp/include/rclcpp/publisher.hpp
+@@ -40,6 +40,8 @@
+ #include "rclcpp/type_support_decl.hpp"
+ #include "rclcpp/visibility_control.hpp"
+ 
++#include <ros2profiling/profiling.h>
++
+ namespace rclcpp
+ {
+ 
+@@ -279,6 +281,7 @@ protected:
+   void
+   do_inter_process_publish(const MessageT & msg)
+   {
++    store_profile(get_topic_name(), (void*)(&msg), PROFIDX_PUB_RCLCPP_INTERPROCESS_PUBLISH, "do_inter_process_publish", NULL);
+     auto status = rcl_publish(publisher_handle_.get(), &msg, nullptr);
+ 
+     if (RCL_RET_PUBLISHER_INVALID == status) {
+diff --git a/rclcpp/include/rclcpp/subscription.hpp b/rclcpp/include/rclcpp/subscription.hpp
+index b567d19..598c52d 100644
+--- a/rclcpp/include/rclcpp/subscription.hpp
++++ b/rclcpp/include/rclcpp/subscription.hpp
+@@ -50,6 +50,8 @@
+ #include "rclcpp/topic_statistics/subscription_topic_statistics.hpp"
+ #include "tracetools/tracetools.h"
+ 
++#include <ros2profiling/profiling.h>
++
+ namespace rclcpp
+ {
+ 
+@@ -271,6 +273,7 @@ public:
+       // we should ignore this copy of the message.
+       return;
+     }
++    store_profile(get_topic_name(), message.get(), PROFIDX_SUB_RCLCPP_HANDLE, "handle_message", NULL);
+     auto typed_message = std::static_pointer_cast<CallbackMessageT>(message);
+     any_callback_.dispatch(typed_message, message_info);
+ 
+diff --git a/rclcpp/package.xml b/rclcpp/package.xml
+index 6be632d..1417421 100644
+--- a/rclcpp/package.xml
++++ b/rclcpp/package.xml
+@@ -15,6 +15,7 @@
+   <build_depend>rosidl_runtime_cpp</build_depend>
+   <build_depend>rosidl_typesupport_c</build_depend>
+   <build_depend>rosidl_typesupport_cpp</build_depend>
++  <build_depend>ros2profiling</build_depend>  
+   <build_export_depend>builtin_interfaces</build_export_depend>
+   <build_export_depend>rcl_interfaces</build_export_depend>
+   <build_export_depend>rosgraph_msgs</build_export_depend>
+diff --git a/rclcpp/src/rclcpp/subscription_base.cpp b/rclcpp/src/rclcpp/subscription_base.cpp
+index 3772603..40acd15 100644
+--- a/rclcpp/src/rclcpp/subscription_base.cpp
++++ b/rclcpp/src/rclcpp/subscription_base.cpp
+@@ -29,6 +29,8 @@
+ #include "rmw/error_handling.h"
+ #include "rmw/rmw.h"
+ 
++#include <ros2profiling/profiling.h>
++
+ using rclcpp::SubscriptionBase;
+ 
+ SubscriptionBase::SubscriptionBase(
+@@ -137,6 +139,7 @@ SubscriptionBase::get_actual_qos() const
+ bool
+ SubscriptionBase::take_type_erased(void * message_out, rclcpp::MessageInfo & message_info_out)
+ {
++  uint64_t ts = get_timestamp();
+   rcl_ret_t ret = rcl_take(
+     this->get_subscription_handle().get(),
+     message_out,
+@@ -155,6 +158,8 @@ SubscriptionBase::take_type_erased(void * message_out, rclcpp::MessageInfo & mes
+     // we should ignore this copy of the message.
+     return false;
+   }
++  store_profile(get_topic_name(), message_out, PROFIDX_SUB_RCLCPP_TAKE_ENTER, "rclcpp_enter", &ts);
++  store_profile(get_topic_name(), message_out, PROFIDX_SUB_RCLCPP_TAKE_LEAVE, "rclcpp_leave", NULL);
+   return true;
+ }
+ 
