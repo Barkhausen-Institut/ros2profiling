@@ -3,7 +3,7 @@
 """This script applies the patches named <pkg>.patch to <pkg>, where <pkg> is defined in the main function
 
 Invoke with `python applyPatches.py` from the `patches` directory of the ros2 profiling directory
-""".
+"""
 
 import subprocess
 import pathlib
