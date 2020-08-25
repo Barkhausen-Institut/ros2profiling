@@ -47,6 +47,7 @@ extern "C" {
 
     all = (uint64_t) sec * 1000000000UL + (uint64_t) ns;
     
+    return all;    
   }
   
   static void store_profile(const char* topic_name, void* msg, int profile_index, const char* log_msg, uint64_t* ts) {
