@@ -41,7 +41,7 @@ extern "C" {
     time_t sec;
     struct timespec spec;
 
-    clock_gettime(CLOCK_REALTIME, &spec);
+    clock_gettime(CLOCK_MONOTONIC, &spec);
     sec = spec.tv_sec;
     ns = spec.tv_nsec;
 
