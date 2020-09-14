@@ -2,55 +2,25 @@ diff --git a/rmw_fastrtps_shared_cpp/include/rmw_fastrtps_shared_cpp/custom_subs
 index e46bf9e..52c3a64 100644
 --- a/rmw_fastrtps_shared_cpp/include/rmw_fastrtps_shared_cpp/custom_subscriber_info.hpp
 +++ b/rmw_fastrtps_shared_cpp/include/rmw_fastrtps_shared_cpp/custom_subscriber_info.hpp
-@@ -24,20 +24,22 @@
- #include "fastrtps/subscriber/Subscriber.h"
- #include "fastrtps/subscriber/SubscriberListener.h"
-
- #include "rcpputils/thread_safety_annotations.hpp"
-
- #include "rmw/impl/cpp/macros.hpp"
-
+@@ -31,6 +31,8 @@
  #include "rmw_fastrtps_shared_cpp/TypeSupport.hpp"
  #include "rmw_fastrtps_shared_cpp/custom_event_info.hpp"
-
+ 
 +#include <ros2profiling/profiling.h>
 +
-
+ 
  class SubListener;
-
- struct CustomSubscriberInfo : public CustomEventInfo
- {
-   virtual ~CustomSubscriberInfo() = default;
-
-   eprosima::fastrtps::Subscriber * subscriber_;
-   SubListener * listener_;
-   rmw_fastrtps_shared_cpp::TypeSupport * type_support_;
-@@ -57,36 +59,40 @@ public:
-   : data_(0),
-     deadline_changes_(false),
-     liveliness_changes_(false),
-     conditionMutex_(nullptr),
-     conditionVariable_(nullptr)
-   {
-     // Field is not used right now
+ 
+@@ -64,6 +66,8 @@ public:
      (void)info;
    }
-
+ 
 +  uint64_t lastOnData = 0;
 +
    // SubscriberListener implementation
    void
    onSubscriptionMatched(
-     eprosima::fastrtps::Subscriber * /*sub*/, eprosima::fastrtps::rtps::MatchingInfo & info) final
-   {
-     std::lock_guard<std::mutex> lock(internalMutex_);
-     if (eprosima::fastrtps::rtps::MATCHED_MATCHING == info.status) {
-       publishers_.insert(info.remoteEndpointGuid);
-     } else if (eprosima::fastrtps::rtps::REMOVED_MATCHING == info.status) {
-       publishers_.erase(info.remoteEndpointGuid);
-     }
-   }
-
+@@ -80,6 +84,8 @@ public:
    void
    onNewDataMessage(eprosima::fastrtps::Subscriber * sub) final
    {
@@ -59,36 +29,20 @@ index e46bf9e..52c3a64 100644
      // Make sure to call into Fast-RTPS before taking the lock to avoid an
      // ABBA deadlock between internalMutex_ and mutexes inside of Fast-RTPS.
  #if FASTRTPS_VERSION_MAJOR == 1 && FASTRTPS_VERSION_MINOR < 9
-     uint64_t unread_count = sub->getUnreadCount();
- #else
-     uint64_t unread_count = sub->get_unread_count();
- #endif
-
-     std::lock_guard<std::mutex> lock(internalMutex_);
-
 diff --git a/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp b/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp
-index c8c8b64..8c9f4e2 100644
+index c8c8b64..41bd373 100644
 --- a/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp
 +++ b/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp
-@@ -16,46 +16,50 @@
- #include "fastcdr/FastBuffer.h"
-
- #include "rmw/allocators.h"
- #include "rmw/error_handling.h"
- #include "rmw/rmw.h"
-
- #include "rmw_fastrtps_shared_cpp/rmw_common.hpp"
+@@ -23,6 +23,8 @@
  #include "rmw_fastrtps_shared_cpp/custom_publisher_info.hpp"
  #include "rmw_fastrtps_shared_cpp/TypeSupport.hpp"
-
+ 
 +#include <ros2profiling/profiling.h>
 +
  namespace rmw_fastrtps_shared_cpp
  {
  rmw_ret_t
- __rmw_publish(
-   const char * identifier,
-   const rmw_publisher_t * publisher,
+@@ -32,6 +34,7 @@ __rmw_publish(
    const void * ros_message,
    rmw_publisher_allocation_t * allocation)
  {
@@ -96,17 +50,7 @@ index c8c8b64..8c9f4e2 100644
    (void) allocation;
    RCUTILS_CHECK_FOR_NULL_WITH_MSG(publisher, "publisher pointer is null", return RMW_RET_ERROR);
    RCUTILS_CHECK_FOR_NULL_WITH_MSG(
-     ros_message, "ros_message pointer is null", return RMW_RET_ERROR);
-
-   if (publisher->implementation_identifier != identifier) {
-     RMW_SET_ERROR_MSG("publisher handle not from this implementation");
-     return RMW_RET_ERROR;
-   }
-
-   auto info = static_cast<CustomPublisherInfo *>(publisher->data);
-   RCUTILS_CHECK_FOR_NULL_WITH_MSG(info, "publisher info pointer is null", return RMW_RET_ERROR);
-
-   rmw_fastrtps_shared_cpp::SerializedData data;
+@@ -49,6 +52,7 @@ __rmw_publish(
    data.is_cdr_buffer = false;
    data.data = const_cast<void *>(ros_message);
    data.impl = info->type_support_impl_;
@@ -114,48 +58,20 @@ index c8c8b64..8c9f4e2 100644
    if (!info->publisher_->write(&data)) {
      RMW_SET_ERROR_MSG("cannot publish data");
      return RMW_RET_ERROR;
-   }
-
-   return RMW_RET_OK;
- }
-
- rmw_ret_t
- __rmw_publish_serialized_message(
 diff --git a/rmw_fastrtps_shared_cpp/src/rmw_take.cpp b/rmw_fastrtps_shared_cpp/src/rmw_take.cpp
-index 1bd9327..695c274 100644
+index 1bd9327..5eaeaad 100644
 --- a/rmw_fastrtps_shared_cpp/src/rmw_take.cpp
 +++ b/rmw_fastrtps_shared_cpp/src/rmw_take.cpp
-@@ -22,20 +22,22 @@
- #include "fastrtps/attributes/SubscriberAttributes.h"
-
- #include "fastcdr/Cdr.h"
- #include "fastcdr/FastBuffer.h"
-
- #include "rmw_fastrtps_shared_cpp/custom_subscriber_info.hpp"
- #include "rmw_fastrtps_shared_cpp/guid_utils.hpp"
+@@ -29,6 +29,8 @@
  #include "rmw_fastrtps_shared_cpp/rmw_common.hpp"
  #include "rmw_fastrtps_shared_cpp/TypeSupport.hpp"
-
+ 
 +#include <ros2profiling/profiling.h>
 +
  namespace rmw_fastrtps_shared_cpp
  {
  void
- _assign_message_info(
-   const char * identifier,
-   rmw_message_info_t * message_info,
-   const eprosima::fastrtps::SampleInfo_t * sinfo)
- {
-   message_info->source_timestamp = sinfo->sourceTimestamp.to_ns();
-   message_info->received_timestamp = sinfo->receptionTimestamp.to_ns();
-@@ -67,22 +69,27 @@ _take(
-
-   CustomSubscriberInfo * info = static_cast<CustomSubscriberInfo *>(subscription->data);
-   RCUTILS_CHECK_FOR_NULL_WITH_MSG(info, "custom subscriber info is null", return RMW_RET_ERROR);
-
-   eprosima::fastrtps::SampleInfo_t sinfo;
-
-   rmw_fastrtps_shared_cpp::SerializedData data;
+@@ -74,8 +76,13 @@ _take(
    data.is_cdr_buffer = false;
    data.data = ros_message;
    data.impl = info->type_support_impl_;
@@ -166,24 +82,10 @@ index 1bd9327..695c274 100644
      info->listener_->data_taken(info->subscriber_);
 +    if (info->listener_)
 +      store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_DDS_ONDATA, "on_data", &info->listener_->lastOnData);
-
+ 
      if (eprosima::fastrtps::rtps::ALIVE == sinfo.sampleKind) {
        if (message_info) {
-         _assign_message_info(identifier, message_info, &sinfo);
-       }
-       *taken = true;
-     }
-   }
-
-   return RMW_RET_OK;
-@@ -221,29 +228,33 @@ __rmw_take_sequence(
-
- rmw_ret_t
- __rmw_take_with_info(
-   const char * identifier,
-   const rmw_subscription_t * subscription,
-   void * ros_message,
-   bool * taken,
+@@ -228,6 +235,7 @@ __rmw_take_with_info(
    rmw_message_info_t * message_info,
    rmw_subscription_allocation_t * allocation)
  {
@@ -191,23 +93,15 @@ index 1bd9327..695c274 100644
    RCUTILS_CHECK_FOR_NULL_WITH_MSG(
      subscription, "subscription pointer is null", return RMW_RET_ERROR);
    RCUTILS_CHECK_FOR_NULL_WITH_MSG(
-     ros_message, "ros_message pointer is null", return RMW_RET_ERROR);
-   RCUTILS_CHECK_FOR_NULL_WITH_MSG(taken, "boolean flag for taken is null", return RMW_RET_ERROR);
+@@ -236,7 +244,10 @@ __rmw_take_with_info(
    RCUTILS_CHECK_FOR_NULL_WITH_MSG(
      message_info, "message info pointer is null", return RMW_RET_ERROR);
-
+ 
 -  return _take(identifier, subscription, ros_message, taken, message_info, allocation);
 +  auto ret = _take(identifier, subscription, ros_message, taken, message_info, allocation);
 +  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_ENTER, "take_enter", &ts);
 +  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_LEAVE, "take_leave", NULL);
 +  return ret;
  }
-
+ 
  rmw_ret_t
- _take_serialized_message(
-   const char * identifier,
-   const rmw_subscription_t * subscription,
-   rmw_serialized_message_t * serialized_message,
-   bool * taken,
-   rmw_message_info_t * message_info,
-   rmw_subscription_allocation_t * allocation)

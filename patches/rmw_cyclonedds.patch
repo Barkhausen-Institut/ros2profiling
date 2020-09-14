@@ -1,17 +1,25 @@
 diff --git a/rmw_cyclonedds_cpp/src/rmw_node.cpp b/rmw_cyclonedds_cpp/src/rmw_node.cpp
-index b418949..6a47108 100644
+index b418949..648d4ed 100644
 --- a/rmw_cyclonedds_cpp/src/rmw_node.cpp
 +++ b/rmw_cyclonedds_cpp/src/rmw_node.cpp
 @@ -77,6 +77,8 @@
  #include "serdata.hpp"
  #include "demangle.hpp"
-
+ 
 +#include <ros2profiling/profiling.h>
 +
  using namespace std::literals::chrono_literals;
-
+ 
  /* Security must be enabled when compiling and requires cyclone to support QOS property lists */
-@@ -1431,11 +1433,13 @@ extern "C" rmw_ret_t rmw_publish(
+@@ -316,6 +318,7 @@ struct CddsSubscription : CddsEntity
+ {
+   rmw_gid_t gid;
+   dds_entity_t rdcondh;
++  uint64_t ts_ondataavailable;
+ };
+ 
+ struct client_service_id_t
+@@ -1431,11 +1434,13 @@ extern "C" rmw_ret_t rmw_publish(
    const rmw_publisher_t * publisher, const void * ros_message,
    rmw_publisher_allocation_t * allocation)
  {
@@ -25,7 +33,7 @@ index b418949..6a47108 100644
    if (dds_write(pub->enth, ros_message) >= 0) {
      return RMW_RET_OK;
    } else {
-@@ -2243,7 +2247,9 @@ static rmw_ret_t rmw_take_int(
+@@ -2243,7 +2248,9 @@ static rmw_ret_t rmw_take_int(
    CddsSubscription * sub = static_cast<CddsSubscription *>(subscription->data);
    RET_NULL(sub);
    dds_sample_info_t info;
@@ -35,16 +43,17 @@ index b418949..6a47108 100644
      if (info.valid_data) {
        *taken = true;
        if (message_info) {
-@@ -2256,6 +2262,8 @@ static rmw_ret_t rmw_take_int(
+@@ -2256,6 +2263,9 @@ static rmw_ret_t rmw_take_int(
          message_info->source_timestamp = info.source_timestamp;
          // TODO(iluetkeb) add received timestamp, when implemented by Cyclone
          message_info->received_timestamp = 0;
 +	store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_DDS_TAKE_ENTER, "dds_take_enter", &ts_enter);
 +	store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_DDS_TAKE_LEAVE, "dds_take_leave", &ts_leave);
++	store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_DDS_ONDATA, "dds_ondata", &sub->ts_ondataavailable);
        }
  #if REPORT_LATE_MESSAGES > 0
        dds_time_t tnow = dds_time();
-@@ -2408,7 +2416,11 @@ extern "C" rmw_ret_t rmw_take_with_info(
+@@ -2408,7 +2418,11 @@ extern "C" rmw_ret_t rmw_take_with_info(
    rmw_subscription_allocation_t * allocation)
  {
    static_cast<void>(allocation);
@@ -55,5 +64,22 @@ index b418949..6a47108 100644
 +  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_LEAVE, "take_leave", NULL);
 +  return result;
  }
-
+ 
  extern "C" rmw_ret_t rmw_take_sequence(
+@@ -3005,6 +3019,7 @@ extern "C" rmw_ret_t rmw_wait(
+   const dds_return_t ntrig = dds_waitset_wait(
+     ws->waitseth, ws->trigs.data(),
+     ws->trigs.size(), timeout);
++  uint64_t ts_ondata = get_timestamp();
+   ws->trigs.resize(ntrig);
+   std::sort(ws->trigs.begin(), ws->trigs.end());
+   ws->trigs.push_back((dds_attach_t) -1);
+@@ -3027,7 +3042,7 @@ extern "C" rmw_ret_t rmw_wait(
+       } \
+     } \
+ } while (0)
+-    DETACH(CddsSubscription, subs, subscriber, rdcondh, (void) x);
++    DETACH(CddsSubscription, subs, subscriber, rdcondh, x->ts_ondataavailable=ts_ondata );
+     DETACH(
+       CddsGuardCondition, gcs, guard_condition, gcondh,
+       dds_take_guardcondition(x->gcondh, &dummy));

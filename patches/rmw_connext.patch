@@ -1,11 +1,11 @@
 diff --git a/rmw_connext_cpp/src/rmw_publish.cpp b/rmw_connext_cpp/src/rmw_publish.cpp
-index 4cd3593..ae3f279 100644
+index 4cd3593..9dcdc48 100644
 --- a/rmw_connext_cpp/src/rmw_publish.cpp
 +++ b/rmw_connext_cpp/src/rmw_publish.cpp
 @@ -24,9 +24,12 @@
  // include patched generated code from the build folder
  #include "connext_static_serialized_dataSupport.h"
-
+ 
 +#include <ros2profiling/profiling.h>
 +
  bool
@@ -18,7 +18,7 @@ index 4cd3593..ae3f279 100644
 @@ -56,6 +59,15 @@ publish(DDS::DataWriter * dds_data_writer, const rcutils_uint8_array_t * cdr_str
      goto cleanup;
    }
-
+ 
 +  store_profile(data_writer->get_topic()->get_name(),
 +		const_cast<void*>((void*)(cdr_stream->buffer+OFFSET_CDR_TO_MESSAGE)),
 +		PROFIDX_PUB_DDS_WRITE, "dds_write", NULL);
@@ -29,7 +29,7 @@ index 4cd3593..ae3f279 100644
 +  */
 +
    status = data_writer->write(*instance, DDS::HANDLE_NIL);
-
+ 
  cleanup:
 @@ -78,6 +90,7 @@ rmw_publish(
    const void * ros_message,
@@ -40,13 +40,13 @@ index 4cd3593..ae3f279 100644
    if (!publisher) {
      RMW_SET_ERROR_MSG("publisher handle is null");
 diff --git a/rmw_connext_cpp/src/rmw_take.cpp b/rmw_connext_cpp/src/rmw_take.cpp
-index 5396339..1a1cb20 100644
+index 5396339..baa0a3c 100644
 --- a/rmw_connext_cpp/src/rmw_take.cpp
 +++ b/rmw_connext_cpp/src/rmw_take.cpp
 @@ -27,6 +27,8 @@
  #include "./connext_static_serialized_dataSupport.h"
  #include "./connext_static_serialized_data.h"
-
+ 
 +#include <ros2profiling/profiling.h>
 +
  static bool
@@ -55,7 +55,7 @@ index 5396339..1a1cb20 100644
 @@ -83,6 +85,7 @@ take(
    DDS::SampleInfoSeq sample_infos;
    bool ignore_sample = false;
-
+ 
 +  uint64_t ts_enter = get_timestamp();
    DDS::ReturnCode_t status = data_reader->take(
      dds_messages,
@@ -80,7 +80,7 @@ index 5396339..1a1cb20 100644
 +    store_profile(topic,
 +		  cdr_stream->buffer+OFFSET_CDR_TO_MESSAGE,
 +		  PROFIDX_SUB_DDS_TAKE_LEAVE, "dds_take_leave", &ts_leave);
-
+ 
      *taken = true;
    } else {
 @@ -358,6 +370,7 @@ rmw_take_with_info(
@@ -94,10 +94,10 @@ index 5396339..1a1cb20 100644
 @@ -375,6 +388,9 @@ rmw_take_with_info(
    auto detail = reinterpret_cast<ConnextPublisherGID *>(sender_gid->data);
    detail->publication_handle = sending_publication_handle;
-
+ 
 +  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_ENTER, "rmw_take_enter", &ts);
 +  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_LEAVE, "rmw_take_leave", NULL);
 +
    return RMW_RET_OK;
  }
-
+ 

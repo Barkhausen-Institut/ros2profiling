@@ -5,7 +5,7 @@ index 62bf16b..67fc609 100644
 @@ -34,6 +34,8 @@ extern "C"
  #include "./common.h"
  #include "./publisher_impl.h"
-
+ 
 +#include <ros2profiling/profiling.h>
 +
  rcl_publisher_t
@@ -20,16 +20,16 @@ index 62bf16b..67fc609 100644
      return RCL_RET_PUBLISHER_INVALID;  // error already set
    }
 diff --git a/rcl/src/rcl/subscription.c b/rcl/src/rcl/subscription.c
-index 2e3b37d..c314aed 100644
+index 2e3b37d..2aeb2be 100644
 --- a/rcl/src/rcl/subscription.c
 +++ b/rcl/src/rcl/subscription.c
 @@ -32,6 +32,8 @@ extern "C"
  #include "./common.h"
  #include "./subscription_impl.h"
-
+ 
 +#include <ros2profiling/profiling.h>
 +
-
+ 
  rcl_subscription_t
  rcl_get_zero_initialized_subscription()
 @@ -254,6 +256,8 @@ rcl_take(
@@ -49,4 +49,4 @@ index 2e3b37d..c314aed 100644
 +  store_profile(subscription->impl->rmw_handle->topic_name, ros_message, PROFIDX_SUB_RCL_TAKE_LEAVE, "rcl_leave", NULL);
    return RCL_RET_OK;
  }
-
+ 
