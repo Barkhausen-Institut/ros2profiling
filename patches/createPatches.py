@@ -25,7 +25,7 @@ def processDirectory(f):
     destination = f"{thisDir}"
 
     # 1. format-patch to somewhere
-    check_call(f"{cd} && git diff HEAD > {destination}/{base}.patch")
+    check_call(f"{cd} && git add . && git diff HEAD > {destination}/{base}.patch")
     
 def main():
     folders = ["ros2/demos",
