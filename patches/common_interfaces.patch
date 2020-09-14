@@ -12,9 +12,12 @@ index 354f1a9..1e14514 100644
    ${msg_files}
 diff --git a/std_msgs/msg/Stamped1kb.msg b/std_msgs/msg/Stamped1kb.msg
 new file mode 100644
-index 0000000..c3b748a
+index 0000000..271bfab
 --- /dev/null
 +++ b/std_msgs/msg/Stamped1kb.msg
-@@ -0,0 +1,2 @@
-+std_msgs/Header header
+@@ -0,0 +1,5 @@
++builtin_interfaces/Time stamp
++uint32 tracking_number
++float32 frequency
++uint32 size
 +byte[1024] data
