@@ -1,3 +1,15 @@
+diff --git a/rmw_connext_cpp/include/rmw_connext_cpp/connext_static_subscriber_info.hpp b/rmw_connext_cpp/include/rmw_connext_cpp/connext_static_subscriber_info.hpp
+index 74b912a..a08ec18 100644
+--- a/rmw_connext_cpp/include/rmw_connext_cpp/connext_static_subscriber_info.hpp
++++ b/rmw_connext_cpp/include/rmw_connext_cpp/connext_static_subscriber_info.hpp
+@@ -37,6 +37,7 @@ struct ConnextStaticSubscriberInfo : ConnextCustomEventInfo
+   DDS::DataReader * topic_reader_;
+   DDS::ReadCondition * read_condition_;
+   const message_type_support_callbacks_t * callbacks_;
++  uint64_t ts_ondataavailable;
+   /// Remap the specific RTI Connext DDS DataReader Status to a generic RMW status type.
+   /**
+    * \param mask input status mask
 diff --git a/rmw_connext_cpp/src/rmw_publish.cpp b/rmw_connext_cpp/src/rmw_publish.cpp
 index 4cd3593..9dcdc48 100644
 --- a/rmw_connext_cpp/src/rmw_publish.cpp
@@ -40,7 +52,7 @@ index 4cd3593..9dcdc48 100644
    if (!publisher) {
      RMW_SET_ERROR_MSG("publisher handle is null");
 diff --git a/rmw_connext_cpp/src/rmw_take.cpp b/rmw_connext_cpp/src/rmw_take.cpp
-index 5396339..baa0a3c 100644
+index 5396339..11c8a56 100644
 --- a/rmw_connext_cpp/src/rmw_take.cpp
 +++ b/rmw_connext_cpp/src/rmw_take.cpp
 @@ -27,6 +27,8 @@
@@ -83,7 +95,17 @@ index 5396339..baa0a3c 100644
  
      *taken = true;
    } else {
-@@ -358,6 +370,7 @@ rmw_take_with_info(
+@@ -198,6 +210,9 @@ _take(
+     return RMW_RET_ERROR;
+   }
+ 
++  const char* topic = topic_reader->get_topicdescription()->get_name();
++  store_profile(topic, ros_message, PROFIDX_SUB_DDS_ONDATA, "dds_ondata", &subscriber_info->ts_ondataavailable);
++
+   // the call to take allocates memory for the serialized message
+   // we have to free this here again
+   free(cdr_stream.buffer);
+@@ -358,6 +373,7 @@ rmw_take_with_info(
    rmw_message_info_t * message_info,
    rmw_subscription_allocation_t * allocation)
  {
@@ -91,7 +113,7 @@ index 5396339..baa0a3c 100644
    if (!message_info) {
      RMW_SET_ERROR_MSG("message info is null");
      return RMW_RET_ERROR;
-@@ -375,6 +388,9 @@ rmw_take_with_info(
+@@ -375,6 +391,9 @@ rmw_take_with_info(
    auto detail = reinterpret_cast<ConnextPublisherGID *>(sender_gid->data);
    detail->publication_handle = sending_publication_handle;
  
@@ -101,3 +123,32 @@ index 5396339..baa0a3c 100644
    return RMW_RET_OK;
  }
  
+diff --git a/rmw_connext_shared_cpp/include/rmw_connext_shared_cpp/wait.hpp b/rmw_connext_shared_cpp/include/rmw_connext_shared_cpp/wait.hpp
+index 30db39d..f8107ff 100644
+--- a/rmw_connext_shared_cpp/include/rmw_connext_shared_cpp/wait.hpp
++++ b/rmw_connext_shared_cpp/include/rmw_connext_shared_cpp/wait.hpp
+@@ -31,6 +31,8 @@
+ #include "rmw_connext_shared_cpp/visibility_control.h"
+ #include "rmw_connext_shared_cpp/connext_static_event_info.hpp"
+ 
++#include <ros2profiling/profiling.h>
++
+ rmw_ret_t
+ __gather_event_conditions(
+   rmw_events_t * events,
+@@ -331,6 +333,7 @@ wait(
+   }
+ 
+   DDS::ReturnCode_t status = dds_wait_set->wait(*active_conditions, timeout);
++  uint64_t ts_ondata = get_timestamp();
+ 
+   if (status != DDS::RETCODE_OK && status != DDS::RETCODE_TIMEOUT) {
+     RMW_SET_ERROR_MSG("failed to wait on wait set");
+@@ -356,6 +359,7 @@ wait(
+       DDS::Long j = 0;
+       for (; j < active_conditions->length(); ++j) {
+         if ((*active_conditions)[j] == read_condition) {
++	  subscriber_info->ts_ondataavailable = ts_ondata;
+           break;
+         }
+       }
