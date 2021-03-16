@@ -1,5 +1,5 @@
 diff --git a/rclcpp/CMakeLists.txt b/rclcpp/CMakeLists.txt
-index 1d646bc..6945d83 100644
+index 26d7e69..1374cc4 100644
 --- a/rclcpp/CMakeLists.txt
 +++ b/rclcpp/CMakeLists.txt
 @@ -19,6 +19,7 @@ find_package(rosidl_typesupport_c REQUIRED)
@@ -10,7 +10,7 @@ index 1d646bc..6945d83 100644
  
  # Default to C++14
  if(NOT CMAKE_CXX_STANDARD)
-@@ -171,6 +172,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
+@@ -175,6 +176,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
  target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})
  # specific order: dependents before dependencies
  ament_target_dependencies(${PROJECT_NAME}
@@ -61,7 +61,7 @@ index b567d19..598c52d 100644
      any_callback_.dispatch(typed_message, message_info);
  
 diff --git a/rclcpp/package.xml b/rclcpp/package.xml
-index 6be632d..12959c6 100644
+index 7c43227..7e8857d 100644
 --- a/rclcpp/package.xml
 +++ b/rclcpp/package.xml
 @@ -15,6 +15,7 @@

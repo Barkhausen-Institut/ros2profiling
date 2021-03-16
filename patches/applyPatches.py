@@ -31,7 +31,7 @@ def processDirectory(f):
     patch = f"{destination}/{base}.patch"
     check_call(f"{cd} && git apply --reject --whitespace=fix {patch}")
 
-   
+
 def main():
     folders = ["ros2/demos",
                "ros2/common_interfaces",
@@ -44,10 +44,13 @@ def main():
 
     for f in folders:
         print(f"=== {f} ===============================")
-        processDirectory(f)
+        try:
+            processDirectory(f)
+        except subprocess.CalledProcessError as E:
+            print(E)
         print("==================================")
 
-    
+
 
 if __name__ == '__main__':
     main()
