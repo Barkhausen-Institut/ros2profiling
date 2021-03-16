@@ -1,8 +1,8 @@
 diff --git a/rmw_cyclonedds_cpp/src/rmw_node.cpp b/rmw_cyclonedds_cpp/src/rmw_node.cpp
-index b418949..648d4ed 100644
+index 1d18e7e..90eb751 100644
 --- a/rmw_cyclonedds_cpp/src/rmw_node.cpp
 +++ b/rmw_cyclonedds_cpp/src/rmw_node.cpp
-@@ -77,6 +77,8 @@
+@@ -82,6 +82,8 @@
  #include "serdata.hpp"
  #include "demangle.hpp"
  
@@ -11,7 +11,7 @@ index b418949..648d4ed 100644
  using namespace std::literals::chrono_literals;
  
  /* Security must be enabled when compiling and requires cyclone to support QOS property lists */
-@@ -316,6 +318,7 @@ struct CddsSubscription : CddsEntity
+@@ -323,6 +325,7 @@ struct CddsSubscription : CddsEntity
  {
    rmw_gid_t gid;
    dds_entity_t rdcondh;
@@ -19,21 +19,23 @@ index b418949..648d4ed 100644
  };
  
  struct client_service_id_t
-@@ -1431,11 +1434,13 @@ extern "C" rmw_ret_t rmw_publish(
+@@ -1509,6 +1512,7 @@ extern "C" rmw_ret_t rmw_publish(
    const rmw_publisher_t * publisher, const void * ros_message,
    rmw_publisher_allocation_t * allocation)
  {
 +  store_profile(publisher->topic_name, const_cast<void*>(ros_message), PROFIDX_PUB_RMW_PUBLISH, "rmw_publish", NULL);
    static_cast<void>(allocation);    // unused
-   RET_WRONG_IMPLID(publisher);
-   RET_NULL(ros_message);
+   RMW_CHECK_FOR_NULL_WITH_MSG(
+     publisher, "publisher handle is null",
+@@ -1521,6 +1525,7 @@ extern "C" rmw_ret_t rmw_publish(
+     return RMW_RET_INVALID_ARGUMENT);
    auto pub = static_cast<CddsPublisher *>(publisher->data);
    assert(pub);
 +  store_profile(publisher->topic_name, const_cast<void*>(ros_message), PROFIDX_PUB_DDS_WRITE, "dds_write", NULL);
    if (dds_write(pub->enth, ros_message) >= 0) {
      return RMW_RET_OK;
    } else {
-@@ -2243,7 +2248,9 @@ static rmw_ret_t rmw_take_int(
+@@ -2547,7 +2552,9 @@ static rmw_ret_t rmw_take_int(
    CddsSubscription * sub = static_cast<CddsSubscription *>(subscription->data);
    RET_NULL(sub);
    dds_sample_info_t info;
@@ -43,7 +45,7 @@ index b418949..648d4ed 100644
      if (info.valid_data) {
        *taken = true;
        if (message_info) {
-@@ -2256,6 +2263,9 @@ static rmw_ret_t rmw_take_int(
+@@ -2560,6 +2567,9 @@ static rmw_ret_t rmw_take_int(
          message_info->source_timestamp = info.source_timestamp;
          // TODO(iluetkeb) add received timestamp, when implemented by Cyclone
          message_info->received_timestamp = 0;
@@ -53,10 +55,10 @@ index b418949..648d4ed 100644
        }
  #if REPORT_LATE_MESSAGES > 0
        dds_time_t tnow = dds_time();
-@@ -2408,7 +2418,11 @@ extern "C" rmw_ret_t rmw_take_with_info(
-   rmw_subscription_allocation_t * allocation)
+@@ -2738,7 +2748,11 @@ extern "C" rmw_ret_t rmw_take_with_info(
  {
    static_cast<void>(allocation);
+   RMW_CHECK_ARGUMENT_FOR_NULL(message_info, RMW_RET_INVALID_ARGUMENT);
 -  return rmw_take_int(subscription, ros_message, taken, message_info);
 +  uint64_t ts_enter = get_timestamp();
 +  auto result = rmw_take_int(subscription, ros_message, taken, message_info);
@@ -66,7 +68,7 @@ index b418949..648d4ed 100644
  }
  
  extern "C" rmw_ret_t rmw_take_sequence(
-@@ -3005,6 +3019,7 @@ extern "C" rmw_ret_t rmw_wait(
+@@ -3345,6 +3359,7 @@ extern "C" rmw_ret_t rmw_wait(
    const dds_return_t ntrig = dds_waitset_wait(
      ws->waitseth, ws->trigs.data(),
      ws->trigs.size(), timeout);
@@ -74,7 +76,7 @@ index b418949..648d4ed 100644
    ws->trigs.resize(ntrig);
    std::sort(ws->trigs.begin(), ws->trigs.end());
    ws->trigs.push_back((dds_attach_t) -1);
-@@ -3027,7 +3042,7 @@ extern "C" rmw_ret_t rmw_wait(
+@@ -3367,7 +3382,7 @@ extern "C" rmw_ret_t rmw_wait(
        } \
      } \
  } while (0)

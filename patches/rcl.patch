@@ -1,8 +1,8 @@
 diff --git a/rcl/src/rcl/publisher.c b/rcl/src/rcl/publisher.c
-index 62bf16b..67fc609 100644
+index 59da94d..89f0cb8 100644
 --- a/rcl/src/rcl/publisher.c
 +++ b/rcl/src/rcl/publisher.c
-@@ -34,6 +34,8 @@ extern "C"
+@@ -35,6 +35,8 @@ extern "C"
  #include "./common.h"
  #include "./publisher_impl.h"
  
@@ -11,16 +11,17 @@ index 62bf16b..67fc609 100644
  rcl_publisher_t
  rcl_get_zero_initialized_publisher()
  {
-@@ -283,6 +285,7 @@ rcl_publish(
+@@ -308,6 +310,8 @@ rcl_publish(
    const void * ros_message,
    rmw_publisher_allocation_t * allocation)
  {
 +  store_profile(publisher->impl->rmw_handle->topic_name, (void*)ros_message, PROFIDX_PUB_RCL_PUBLISH, "rcl_publish", NULL);
-   if (!rcl_publisher_is_valid(publisher)) {
-     return RCL_RET_PUBLISHER_INVALID;  // error already set
-   }
++
+   RCUTILS_CAN_RETURN_WITH_ERROR_OF(RCL_RET_PUBLISHER_INVALID);
+   RCUTILS_CAN_RETURN_WITH_ERROR_OF(RCL_RET_ERROR);
+ 
 diff --git a/rcl/src/rcl/subscription.c b/rcl/src/rcl/subscription.c
-index 2e3b37d..2aeb2be 100644
+index f3628b8..104d622 100644
 --- a/rcl/src/rcl/subscription.c
 +++ b/rcl/src/rcl/subscription.c
 @@ -32,6 +32,8 @@ extern "C"
@@ -32,7 +33,7 @@ index 2e3b37d..2aeb2be 100644
  
  rcl_subscription_t
  rcl_get_zero_initialized_subscription()
-@@ -254,6 +256,8 @@ rcl_take(
+@@ -270,6 +272,8 @@ rcl_take(
    rmw_subscription_allocation_t * allocation
  )
  {
@@ -41,7 +42,7 @@ index 2e3b37d..2aeb2be 100644
    RCUTILS_LOG_DEBUG_NAMED(ROS_PACKAGE_NAME, "Subscription taking message");
    if (!rcl_subscription_is_valid(subscription)) {
      return RCL_RET_SUBSCRIPTION_INVALID;  // error message already set
-@@ -280,6 +284,8 @@ rcl_take(
+@@ -293,6 +297,8 @@ rcl_take(
    if (!taken) {
      return RCL_RET_SUBSCRIPTION_TAKE_FAILED;
    }

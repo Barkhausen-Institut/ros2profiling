@@ -1,5 +1,5 @@
 diff --git a/rmw_fastrtps_shared_cpp/include/rmw_fastrtps_shared_cpp/custom_subscriber_info.hpp b/rmw_fastrtps_shared_cpp/include/rmw_fastrtps_shared_cpp/custom_subscriber_info.hpp
-index e46bf9e..52c3a64 100644
+index f602dfd..f69cb71 100644
 --- a/rmw_fastrtps_shared_cpp/include/rmw_fastrtps_shared_cpp/custom_subscriber_info.hpp
 +++ b/rmw_fastrtps_shared_cpp/include/rmw_fastrtps_shared_cpp/custom_subscriber_info.hpp
 @@ -31,6 +31,8 @@
@@ -20,20 +20,20 @@ index e46bf9e..52c3a64 100644
    // SubscriberListener implementation
    void
    onSubscriptionMatched(
-@@ -80,6 +84,8 @@ public:
+@@ -83,6 +87,8 @@ public:
    void
    onNewDataMessage(eprosima::fastrtps::Subscriber * sub) final
    {
 +    lastOnData = get_timestamp();
 +
-     // Make sure to call into Fast-RTPS before taking the lock to avoid an
-     // ABBA deadlock between internalMutex_ and mutexes inside of Fast-RTPS.
- #if FASTRTPS_VERSION_MAJOR == 1 && FASTRTPS_VERSION_MINOR < 9
+     data_taken(sub);
+   }
+ 
 diff --git a/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp b/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp
-index c8c8b64..41bd373 100644
+index 5a417bb..f5beaff 100644
 --- a/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp
 +++ b/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp
-@@ -23,6 +23,8 @@
+@@ -24,6 +24,8 @@
  #include "rmw_fastrtps_shared_cpp/custom_publisher_info.hpp"
  #include "rmw_fastrtps_shared_cpp/TypeSupport.hpp"
  
@@ -42,15 +42,15 @@ index c8c8b64..41bd373 100644
  namespace rmw_fastrtps_shared_cpp
  {
  rmw_ret_t
-@@ -32,6 +34,7 @@ __rmw_publish(
+@@ -33,6 +35,7 @@ __rmw_publish(
    const void * ros_message,
    rmw_publisher_allocation_t * allocation)
  {
 +  store_profile(publisher->topic_name, const_cast<void*>(ros_message), PROFIDX_PUB_RMW_PUBLISH, "rmw_publish", NULL);
    (void) allocation;
-   RCUTILS_CHECK_FOR_NULL_WITH_MSG(publisher, "publisher pointer is null", return RMW_RET_ERROR);
-   RCUTILS_CHECK_FOR_NULL_WITH_MSG(
-@@ -49,6 +52,7 @@ __rmw_publish(
+   RMW_CHECK_FOR_NULL_WITH_MSG(
+     publisher, "publisher handle is null",
+@@ -51,6 +54,7 @@ __rmw_publish(
    data.is_cdr_buffer = false;
    data.data = const_cast<void *>(ros_message);
    data.impl = info->type_support_impl_;
@@ -59,7 +59,7 @@ index c8c8b64..41bd373 100644
      RMW_SET_ERROR_MSG("cannot publish data");
      return RMW_RET_ERROR;
 diff --git a/rmw_fastrtps_shared_cpp/src/rmw_take.cpp b/rmw_fastrtps_shared_cpp/src/rmw_take.cpp
-index 1bd9327..5eaeaad 100644
+index 2f4227d..98f9eb5 100644
 --- a/rmw_fastrtps_shared_cpp/src/rmw_take.cpp
 +++ b/rmw_fastrtps_shared_cpp/src/rmw_take.cpp
 @@ -29,6 +29,8 @@
@@ -85,17 +85,17 @@ index 1bd9327..5eaeaad 100644
  
      if (eprosima::fastrtps::rtps::ALIVE == sinfo.sampleKind) {
        if (message_info) {
-@@ -228,6 +235,7 @@ __rmw_take_with_info(
+@@ -238,6 +245,7 @@ __rmw_take_with_info(
    rmw_message_info_t * message_info,
    rmw_subscription_allocation_t * allocation)
  {
 +  uint64_t ts = get_timestamp();
-   RCUTILS_CHECK_FOR_NULL_WITH_MSG(
-     subscription, "subscription pointer is null", return RMW_RET_ERROR);
-   RCUTILS_CHECK_FOR_NULL_WITH_MSG(
-@@ -236,7 +244,10 @@ __rmw_take_with_info(
-   RCUTILS_CHECK_FOR_NULL_WITH_MSG(
-     message_info, "message info pointer is null", return RMW_RET_ERROR);
+   RMW_CHECK_ARGUMENT_FOR_NULL(
+     message_info, RMW_RET_INVALID_ARGUMENT);
+ 
+@@ -250,7 +258,10 @@ __rmw_take_with_info(
+   RMW_CHECK_ARGUMENT_FOR_NULL(
+     subscription, RMW_RET_INVALID_ARGUMENT);
  
 -  return _take(identifier, subscription, ros_message, taken, message_info, allocation);
 +  auto ret = _take(identifier, subscription, ros_message, taken, message_info, allocation);
