@@ -1,0 +1,68 @@
+diff --git a/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp b/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
+index 527a03e..58e61d2 100644
+--- a/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
++++ b/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
+@@ -844,6 +844,8 @@ public:
+     return DDS_Publisher_get_participant(pub);
+   }
+ 
++  std::string topic_name;
++
+ private:
+   rmw_context_impl_t * ctx;
+   DDS_DataWriter * dds_writer;
+diff --git a/rmw_connextdds_common/src/common/rmw_impl.cpp b/rmw_connextdds_common/src/common/rmw_impl.cpp
+index 96e376e..7e7a9e8 100644
+--- a/rmw_connextdds_common/src/common/rmw_impl.cpp
++++ b/rmw_connextdds_common/src/common/rmw_impl.cpp
+@@ -824,6 +824,8 @@ RMW_Connext_Publisher::create(
+     return nullptr;
+   }
+ 
++  rmw_pub_impl->topic_name = str_topic;
++
+   scope_exit_type_unregister.cancel();
+   scope_exit_topic_delete.cancel();
+   scope_exit_dds_writer_delete.cancel();
+diff --git a/rmw_connextdds_common/src/common/rmw_publication.cpp b/rmw_connextdds_common/src/common/rmw_publication.cpp
+index 5ab5aae..4157278 100644
+--- a/rmw_connextdds_common/src/common/rmw_publication.cpp
++++ b/rmw_connextdds_common/src/common/rmw_publication.cpp
+@@ -17,6 +17,8 @@
+ 
+ #include "rmw/validate_full_topic_name.h"
+ 
++#include <ros2profiling/profiling.h>
++
+ /******************************************************************************
+  * Publication functions
+  ******************************************************************************/
+@@ -28,6 +30,7 @@ rmw_api_connextdds_publish(
+   const void * ros_message,
+   rmw_publisher_allocation_t * allocation)
+ {
++  store_profile(publisher->topic_name, const_cast<void*>(ros_message), PROFIDX_PUB_RMW_PUBLISH, "rmw_publish", NULL);
+   UNUSED_ARG(allocation);
+ 
+   RMW_CHECK_ARGUMENT_FOR_NULL(publisher, RMW_RET_INVALID_ARGUMENT);
+diff --git a/rmw_connextdds_common/src/ndds/dds_api_ndds.cpp b/rmw_connextdds_common/src/ndds/dds_api_ndds.cpp
+index 0106a32..7e6e857 100644
+--- a/rmw_connextdds_common/src/ndds/dds_api_ndds.cpp
++++ b/rmw_connextdds_common/src/ndds/dds_api_ndds.cpp
+@@ -22,6 +22,8 @@
+ #include "rmw_connextdds/rmw_impl.hpp"
+ #include "rmw_connextdds/graph_cache.hpp"
+ 
++#include <ros2profiling/profiling.h>
++
+ const char * const RMW_CONNEXTDDS_ID = "rmw_connextdds";
+ const char * const RMW_CONNEXTDDS_SERIALIZATION_FORMAT = "cdr";
+ 
+@@ -621,6 +623,7 @@ rmw_connextdds_write_message(
+     return RMW_RET_OK;
+   }
+ 
++  store_profile(pub->topic_name.c_str(), const_cast<void*>(message->user_data), PROFIDX_PUB_DDS_WRITE, "dds_write", NULL);
+   if (DDS_RETCODE_OK !=
+     DDS_DataWriter_write_untypedI(
+       pub->writer(), message, &DDS_HANDLE_NIL))
