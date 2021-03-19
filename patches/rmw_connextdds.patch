@@ -37,7 +37,7 @@ index e080a12..bf3b23e 100644
  
  #if RMW_CONNEXT_HAVE_TAKE_SEQ
 diff --git a/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp b/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
-index 527a03e..5763ce6 100644
+index 527a03e..c59da05 100644
 --- a/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
 +++ b/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
 @@ -270,6 +270,8 @@ protected:
@@ -63,12 +63,12 @@ index 527a03e..5763ce6 100644
  
    const bool internal;
 +  std::string topic_name;
-+  uint64_t ts_ondataavailable;
++  uint64_t ts_ondata;
  
  private:
    rmw_context_impl_t * ctx;
 diff --git a/rmw_connextdds_common/src/common/rmw_impl.cpp b/rmw_connextdds_common/src/common/rmw_impl.cpp
-index 96e376e..16dc18c 100644
+index 96e376e..38258e2 100644
 --- a/rmw_connextdds_common/src/common/rmw_impl.cpp
 +++ b/rmw_connextdds_common/src/common/rmw_impl.cpp
 @@ -21,6 +21,8 @@
@@ -130,7 +130,7 @@ index 96e376e..16dc18c 100644
        subs->subscribers[i] = nullptr;
      } else {
        active_conditions += 1;
-+      static_cast<RMW_Connext_Subscriber>(subs->subscribers[i])->ts_ondata = this->ts_lastondata;
++      static_cast<RMW_Connext_Subscriber*>(subs->subscribers[i])->ts_ondata = this->ts_lastondata;
      }
      i += 1;
      valid = valid && !sub->condition()->deleted;
