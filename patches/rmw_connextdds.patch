@@ -37,10 +37,19 @@ index e080a12..bf3b23e 100644
  
  #if RMW_CONNEXT_HAVE_TAKE_SEQ
 diff --git a/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp b/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
-index 527a03e..d473676 100644
+index 527a03e..5763ce6 100644
 --- a/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
 +++ b/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
-@@ -844,6 +844,8 @@ public:
+@@ -270,6 +270,8 @@ protected:
+   DDS_WaitSet * waitset;
+   DDS_ConditionSeq active_conditions;
+ 
++  uint64_t ts_lastondata;
++
+   std::vector<RMW_Connext_Subscriber *> attached_subscribers;
+   std::vector<RMW_Connext_GuardCondition *> attached_conditions;
+   std::vector<RMW_Connext_Client *> attached_clients;
+@@ -844,6 +846,8 @@ public:
      return DDS_Publisher_get_participant(pub);
    }
  
@@ -49,16 +58,17 @@ index 527a03e..d473676 100644
  private:
    rmw_context_impl_t * ctx;
    DDS_DataWriter * dds_writer;
-@@ -1094,6 +1096,7 @@ public:
+@@ -1094,6 +1098,8 @@ public:
    }
  
    const bool internal;
-+  std::string topic_name;  
++  std::string topic_name;
++  uint64_t ts_ondataavailable;
  
  private:
    rmw_context_impl_t * ctx;
 diff --git a/rmw_connextdds_common/src/common/rmw_impl.cpp b/rmw_connextdds_common/src/common/rmw_impl.cpp
-index 96e376e..c16b0ff 100644
+index 96e376e..16dc18c 100644
 --- a/rmw_connextdds_common/src/common/rmw_impl.cpp
 +++ b/rmw_connextdds_common/src/common/rmw_impl.cpp
 @@ -21,6 +21,8 @@
@@ -105,15 +115,33 @@ index 96e376e..c16b0ff 100644
  
        if (info->valid_data) {
          bool accepted = false;
-@@ -1727,6 +1736,8 @@ RMW_Connext_Subscriber::take_next(
+@@ -1727,6 +1736,10 @@ RMW_Connext_Subscriber::take_next(
            rmw_connextdds_message_info_from_dds(message_info, info);
          }
  
 +	store_profile(topic_name.c_str(), ros_message, PROFIDX_SUB_DDS_TAKE_ENTER, "dds_take_enter", &ts_enter);
-+	store_profile(topic_name.c_str(), ros_message, PROFIDX_SUB_DDS_TAKE_LEAVE, "dds_take_leave", &ts_leave);	
++	store_profile(topic_name.c_str(), ros_message, PROFIDX_SUB_DDS_TAKE_LEAVE, "dds_take_leave", &ts_leave);
++        store_profile(topic_name.c_str(), ros_message, PROFIDX_SUB_DDS_ONDATA, "dds_ondata", &this->ts_ondata);
++
          *taken += 1;
          continue;
        }
+@@ -3490,6 +3503,7 @@ RMW_Connext_WaitSet::process_wait(
+       subs->subscribers[i] = nullptr;
+     } else {
+       active_conditions += 1;
++      static_cast<RMW_Connext_Subscriber>(subs->subscribers[i])->ts_ondata = this->ts_lastondata;
+     }
+     i += 1;
+     valid = valid && !sub->condition()->deleted;
+@@ -3670,6 +3684,7 @@ RMW_Connext_WaitSet::wait(
+ 
+   const DDS_ReturnCode_t wait_rc =
+     DDS_WaitSet_wait(this->waitset, &this->active_conditions, &wait_duration);
++  this->ts_lastondata = get_timestamp();
+ 
+   if (DDS_RETCODE_OK != wait_rc && DDS_RETCODE_TIMEOUT != wait_rc) {
+     RMW_CONNEXT_LOG_ERROR_A_SET("DDS wait failed: %d", wait_rc)
 diff --git a/rmw_connextdds_common/src/common/rmw_publication.cpp b/rmw_connextdds_common/src/common/rmw_publication.cpp
 index 5ab5aae..061dc15 100644
 --- a/rmw_connextdds_common/src/common/rmw_publication.cpp
