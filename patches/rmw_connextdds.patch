@@ -1,3 +1,41 @@
+diff --git a/rmw_connextdds/src/rmw_api_impl_ndds.cpp b/rmw_connextdds/src/rmw_api_impl_ndds.cpp
+index e080a12..bf3b23e 100644
+--- a/rmw_connextdds/src/rmw_api_impl_ndds.cpp
++++ b/rmw_connextdds/src/rmw_api_impl_ndds.cpp
+@@ -14,6 +14,9 @@
+ 
+ #include "rmw_connextdds/rmw_api_impl.hpp"
+ 
++#include <ros2profiling/profiling.h>
++
++
+ /*****************************************************************************
+  * Context API
+  *****************************************************************************/
+@@ -356,6 +359,7 @@ rmw_publish(
+   const void * ros_message,
+   rmw_publisher_allocation_t * allocation)
+ {
++  store_profile(publisher->topic_name, const_cast<void*>(ros_message), PROFIDX_PUB_RMW_PUBLISH, "rmw_publish", NULL);
+   return rmw_api_connextdds_publish(publisher, ros_message, allocation);
+ }
+ 
+@@ -771,8 +775,14 @@ rmw_take_with_info(
+   rmw_message_info_t * message_info,
+   rmw_subscription_allocation_t * allocation)
+ {
+-  return rmw_api_connextdds_take_with_info(
++  uint64_t ts_enter = get_timestamp();  
++  auto result = rmw_api_connextdds_take_with_info(
+     subscription, ros_message, taken, message_info, allocation);
++  uint64_t ts_leave = get_timestamp();
++
++  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_ENTER, "rmw_take_enter", &ts_enter);
++  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_LEAVE, "rmw_take_leave", &ts_leave);
++  return result;
+ }
+ 
+ #if RMW_CONNEXT_HAVE_TAKE_SEQ
 diff --git a/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp b/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
 index 527a03e..58e61d2 100644
 --- a/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
@@ -25,26 +63,17 @@ index 96e376e..7e7a9e8 100644
    scope_exit_topic_delete.cancel();
    scope_exit_dds_writer_delete.cancel();
 diff --git a/rmw_connextdds_common/src/common/rmw_publication.cpp b/rmw_connextdds_common/src/common/rmw_publication.cpp
-index 5ab5aae..4157278 100644
+index 5ab5aae..061dc15 100644
 --- a/rmw_connextdds_common/src/common/rmw_publication.cpp
 +++ b/rmw_connextdds_common/src/common/rmw_publication.cpp
-@@ -17,6 +17,8 @@
+@@ -17,6 +17,7 @@
  
  #include "rmw/validate_full_topic_name.h"
  
-+#include <ros2profiling/profiling.h>
 +
  /******************************************************************************
   * Publication functions
   ******************************************************************************/
-@@ -28,6 +30,7 @@ rmw_api_connextdds_publish(
-   const void * ros_message,
-   rmw_publisher_allocation_t * allocation)
- {
-+  store_profile(publisher->topic_name, const_cast<void*>(ros_message), PROFIDX_PUB_RMW_PUBLISH, "rmw_publish", NULL);
-   UNUSED_ARG(allocation);
- 
-   RMW_CHECK_ARGUMENT_FOR_NULL(publisher, RMW_RET_INVALID_ARGUMENT);
 diff --git a/rmw_connextdds_common/src/ndds/dds_api_ndds.cpp b/rmw_connextdds_common/src/ndds/dds_api_ndds.cpp
 index 0106a32..7e6e857 100644
 --- a/rmw_connextdds_common/src/ndds/dds_api_ndds.cpp
