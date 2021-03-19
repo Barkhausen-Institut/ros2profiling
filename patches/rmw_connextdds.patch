@@ -37,7 +37,7 @@ index e080a12..bf3b23e 100644
  
  #if RMW_CONNEXT_HAVE_TAKE_SEQ
 diff --git a/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp b/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
-index 527a03e..58e61d2 100644
+index 527a03e..d473676 100644
 --- a/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
 +++ b/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
 @@ -844,6 +844,8 @@ public:
@@ -49,11 +49,28 @@ index 527a03e..58e61d2 100644
  private:
    rmw_context_impl_t * ctx;
    DDS_DataWriter * dds_writer;
+@@ -1094,6 +1096,7 @@ public:
+   }
+ 
+   const bool internal;
++  std::string topic_name;  
+ 
+ private:
+   rmw_context_impl_t * ctx;
 diff --git a/rmw_connextdds_common/src/common/rmw_impl.cpp b/rmw_connextdds_common/src/common/rmw_impl.cpp
-index 96e376e..7e7a9e8 100644
+index 96e376e..c16b0ff 100644
 --- a/rmw_connextdds_common/src/common/rmw_impl.cpp
 +++ b/rmw_connextdds_common/src/common/rmw_impl.cpp
-@@ -824,6 +824,8 @@ RMW_Connext_Publisher::create(
+@@ -21,6 +21,8 @@
+ 
+ #include "rmw_connextdds/graph_cache.hpp"
+ 
++#include <ros2profiling/profiling.h>
++
+ #if RMW_CONNEXT_HAVE_TIME_UTILS
+ #include "rmw_dds_common/time_utils.hpp"
+ #endif /* RMW_CONNEXT_HAVE_TIME_UTILS */
+@@ -824,6 +826,8 @@ RMW_Connext_Publisher::create(
      return nullptr;
    }
  
@@ -62,6 +79,41 @@ index 96e376e..7e7a9e8 100644
    scope_exit_type_unregister.cancel();
    scope_exit_topic_delete.cancel();
    scope_exit_dds_writer_delete.cancel();
+@@ -1352,6 +1356,9 @@ RMW_Connext_Subscriber::create(
+     RMW_CONNEXT_LOG_ERROR_SET("failed to allocate RMW subscriber")
+     return nullptr;
+   }
++
++  rmw_sub_impl->topic_name = str_topic;
++  
+   scope_exit_type_unregister.cancel();
+   scope_exit_topic_delete.cancel();
+   scope_exit_dds_reader_delete.cancel();
+@@ -1641,6 +1648,7 @@ RMW_Connext_Subscriber::take_next(
+       RMW_RET_OK == rc_exit;
+       this->loan_next++)
+     {
++      uint64_t ts_enter = get_timestamp();
+       rcutils_uint8_array_t * data_buffer =
+         reinterpret_cast<rcutils_uint8_array_t *>(
+         DDS_UntypedSampleSeq_get_reference(
+@@ -1649,6 +1657,7 @@ RMW_Connext_Subscriber::take_next(
+         DDS_SampleInfoSeq_get_reference(
+         &this->loan_info, static_cast<DDS_Long>(this->loan_next));
+       void * ros_message = ros_messages[*taken];
++      uint64_t ts_leave = get_timestamp();
+ 
+       if (info->valid_data) {
+         bool accepted = false;
+@@ -1727,6 +1736,8 @@ RMW_Connext_Subscriber::take_next(
+           rmw_connextdds_message_info_from_dds(message_info, info);
+         }
+ 
++	store_profile(topic_name.c_str(), ros_message, PROFIDX_SUB_DDS_TAKE_ENTER, "dds_take_enter", &ts_enter);
++	store_profile(topic_name.c_str(), ros_message, PROFIDX_SUB_DDS_TAKE_LEAVE, "dds_take_leave", &ts_leave);	
+         *taken += 1;
+         continue;
+       }
 diff --git a/rmw_connextdds_common/src/common/rmw_publication.cpp b/rmw_connextdds_common/src/common/rmw_publication.cpp
 index 5ab5aae..061dc15 100644
 --- a/rmw_connextdds_common/src/common/rmw_publication.cpp
