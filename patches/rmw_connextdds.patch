@@ -1,0 +1,177 @@
+diff --git a/rmw_connextdds/src/rmw_api_impl_ndds.cpp b/rmw_connextdds/src/rmw_api_impl_ndds.cpp
+index e080a12..bf3b23e 100644
+--- a/rmw_connextdds/src/rmw_api_impl_ndds.cpp
++++ b/rmw_connextdds/src/rmw_api_impl_ndds.cpp
+@@ -14,6 +14,9 @@
+ 
+ #include "rmw_connextdds/rmw_api_impl.hpp"
+ 
++#include <ros2profiling/profiling.h>
++
++
+ /*****************************************************************************
+  * Context API
+  *****************************************************************************/
+@@ -356,6 +359,7 @@ rmw_publish(
+   const void * ros_message,
+   rmw_publisher_allocation_t * allocation)
+ {
++  store_profile(publisher->topic_name, const_cast<void*>(ros_message), PROFIDX_PUB_RMW_PUBLISH, "rmw_publish", NULL);
+   return rmw_api_connextdds_publish(publisher, ros_message, allocation);
+ }
+ 
+@@ -771,8 +775,14 @@ rmw_take_with_info(
+   rmw_message_info_t * message_info,
+   rmw_subscription_allocation_t * allocation)
+ {
+-  return rmw_api_connextdds_take_with_info(
++  uint64_t ts_enter = get_timestamp();  
++  auto result = rmw_api_connextdds_take_with_info(
+     subscription, ros_message, taken, message_info, allocation);
++  uint64_t ts_leave = get_timestamp();
++
++  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_ENTER, "rmw_take_enter", &ts_enter);
++  store_profile(subscription->topic_name, ros_message, PROFIDX_SUB_RMW_TAKE_LEAVE, "rmw_take_leave", &ts_leave);
++  return result;
+ }
+ 
+ #if RMW_CONNEXT_HAVE_TAKE_SEQ
+diff --git a/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp b/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
+index 527a03e..c59da05 100644
+--- a/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
++++ b/rmw_connextdds_common/include/rmw_connextdds/rmw_impl.hpp
+@@ -270,6 +270,8 @@ protected:
+   DDS_WaitSet * waitset;
+   DDS_ConditionSeq active_conditions;
+ 
++  uint64_t ts_lastondata;
++
+   std::vector<RMW_Connext_Subscriber *> attached_subscribers;
+   std::vector<RMW_Connext_GuardCondition *> attached_conditions;
+   std::vector<RMW_Connext_Client *> attached_clients;
+@@ -844,6 +846,8 @@ public:
+     return DDS_Publisher_get_participant(pub);
+   }
+ 
++  std::string topic_name;
++
+ private:
+   rmw_context_impl_t * ctx;
+   DDS_DataWriter * dds_writer;
+@@ -1094,6 +1098,8 @@ public:
+   }
+ 
+   const bool internal;
++  std::string topic_name;
++  uint64_t ts_ondata;
+ 
+ private:
+   rmw_context_impl_t * ctx;
+diff --git a/rmw_connextdds_common/src/common/rmw_impl.cpp b/rmw_connextdds_common/src/common/rmw_impl.cpp
+index 96e376e..38258e2 100644
+--- a/rmw_connextdds_common/src/common/rmw_impl.cpp
++++ b/rmw_connextdds_common/src/common/rmw_impl.cpp
+@@ -21,6 +21,8 @@
+ 
+ #include "rmw_connextdds/graph_cache.hpp"
+ 
++#include <ros2profiling/profiling.h>
++
+ #if RMW_CONNEXT_HAVE_TIME_UTILS
+ #include "rmw_dds_common/time_utils.hpp"
+ #endif /* RMW_CONNEXT_HAVE_TIME_UTILS */
+@@ -824,6 +826,8 @@ RMW_Connext_Publisher::create(
+     return nullptr;
+   }
+ 
++  rmw_pub_impl->topic_name = str_topic;
++
+   scope_exit_type_unregister.cancel();
+   scope_exit_topic_delete.cancel();
+   scope_exit_dds_writer_delete.cancel();
+@@ -1352,6 +1356,9 @@ RMW_Connext_Subscriber::create(
+     RMW_CONNEXT_LOG_ERROR_SET("failed to allocate RMW subscriber")
+     return nullptr;
+   }
++
++  rmw_sub_impl->topic_name = str_topic;
++  
+   scope_exit_type_unregister.cancel();
+   scope_exit_topic_delete.cancel();
+   scope_exit_dds_reader_delete.cancel();
+@@ -1641,6 +1648,7 @@ RMW_Connext_Subscriber::take_next(
+       RMW_RET_OK == rc_exit;
+       this->loan_next++)
+     {
++      uint64_t ts_enter = get_timestamp();
+       rcutils_uint8_array_t * data_buffer =
+         reinterpret_cast<rcutils_uint8_array_t *>(
+         DDS_UntypedSampleSeq_get_reference(
+@@ -1649,6 +1657,7 @@ RMW_Connext_Subscriber::take_next(
+         DDS_SampleInfoSeq_get_reference(
+         &this->loan_info, static_cast<DDS_Long>(this->loan_next));
+       void * ros_message = ros_messages[*taken];
++      uint64_t ts_leave = get_timestamp();
+ 
+       if (info->valid_data) {
+         bool accepted = false;
+@@ -1727,6 +1736,10 @@ RMW_Connext_Subscriber::take_next(
+           rmw_connextdds_message_info_from_dds(message_info, info);
+         }
+ 
++	store_profile(topic_name.c_str(), ros_message, PROFIDX_SUB_DDS_TAKE_ENTER, "dds_take_enter", &ts_enter);
++	store_profile(topic_name.c_str(), ros_message, PROFIDX_SUB_DDS_TAKE_LEAVE, "dds_take_leave", &ts_leave);
++        store_profile(topic_name.c_str(), ros_message, PROFIDX_SUB_DDS_ONDATA, "dds_ondata", &this->ts_ondata);
++
+         *taken += 1;
+         continue;
+       }
+@@ -3490,6 +3503,7 @@ RMW_Connext_WaitSet::process_wait(
+       subs->subscribers[i] = nullptr;
+     } else {
+       active_conditions += 1;
++      static_cast<RMW_Connext_Subscriber*>(subs->subscribers[i])->ts_ondata = this->ts_lastondata;
+     }
+     i += 1;
+     valid = valid && !sub->condition()->deleted;
+@@ -3670,6 +3684,7 @@ RMW_Connext_WaitSet::wait(
+ 
+   const DDS_ReturnCode_t wait_rc =
+     DDS_WaitSet_wait(this->waitset, &this->active_conditions, &wait_duration);
++  this->ts_lastondata = get_timestamp();
+ 
+   if (DDS_RETCODE_OK != wait_rc && DDS_RETCODE_TIMEOUT != wait_rc) {
+     RMW_CONNEXT_LOG_ERROR_A_SET("DDS wait failed: %d", wait_rc)
+diff --git a/rmw_connextdds_common/src/common/rmw_publication.cpp b/rmw_connextdds_common/src/common/rmw_publication.cpp
+index 5ab5aae..061dc15 100644
+--- a/rmw_connextdds_common/src/common/rmw_publication.cpp
++++ b/rmw_connextdds_common/src/common/rmw_publication.cpp
+@@ -17,6 +17,7 @@
+ 
+ #include "rmw/validate_full_topic_name.h"
+ 
++
+ /******************************************************************************
+  * Publication functions
+  ******************************************************************************/
+diff --git a/rmw_connextdds_common/src/ndds/dds_api_ndds.cpp b/rmw_connextdds_common/src/ndds/dds_api_ndds.cpp
+index 0106a32..7e6e857 100644
+--- a/rmw_connextdds_common/src/ndds/dds_api_ndds.cpp
++++ b/rmw_connextdds_common/src/ndds/dds_api_ndds.cpp
+@@ -22,6 +22,8 @@
+ #include "rmw_connextdds/rmw_impl.hpp"
+ #include "rmw_connextdds/graph_cache.hpp"
+ 
++#include <ros2profiling/profiling.h>
++
+ const char * const RMW_CONNEXTDDS_ID = "rmw_connextdds";
+ const char * const RMW_CONNEXTDDS_SERIALIZATION_FORMAT = "cdr";
+ 
+@@ -621,6 +623,7 @@ rmw_connextdds_write_message(
+     return RMW_RET_OK;
+   }
+ 
++  store_profile(pub->topic_name.c_str(), const_cast<void*>(message->user_data), PROFIDX_PUB_DDS_WRITE, "dds_write", NULL);
+   if (DDS_RETCODE_OK !=
+     DDS_DataWriter_write_untypedI(
+       pub->writer(), message, &DDS_HANDLE_NIL))
