@@ -40,6 +40,7 @@ def main():
                "ros2/rmw_connext",
                "ros2/rmw_cyclonedds",
                "ros2/rmw_fastrtps",
+               "ros2/rmw_connextdds",
 ]
 
     for f in folders:
